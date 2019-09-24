@@ -19,4 +19,5 @@ setuptools.setup(name='pysdbus',
     license='LGPL-2.1',
     packages=setuptools.find_packages(),
     include_package_data=True,
+    scripts=['apps/dbus-cli.py']
 )
