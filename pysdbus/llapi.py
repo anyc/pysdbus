@@ -23,8 +23,6 @@ import ctypes as ct
 
 from header import *
 
-debug = False
-
 class sd_bus(ct.Structure):
 	pass
 
@@ -130,6 +128,8 @@ SD_BUS_VTABLE_PROPERTY_EMITS_INVALIDATION  = 1 << 6
 SD_BUS_VTABLE_PROPERTY_EXPLICIT            = 1 << 7
 _SD_BUS_VTABLE_CAPABILITY_MASK = 0xFFFF << 40
 
+SD_BUS_CREDS_ALL               = (1 << 34) -1
+
 def sd_bus_vtable_fill_method(vtable_entry, member, signature, result, handler, offset, flags):
 	vtable_entry.type = _SD_BUS_VTABLE_METHOD
 	vtable_entry.flags = flags
@@ -158,6 +158,7 @@ def sd_bus_vtable_fill_end(vtable_entry):
 	vtable_entry.flags = 0
 
 library_functions = [
+	{ "name": "sd_bus_new", "args": [ct.POINTER(ct.POINTER(sd_bus))] },
 	{ "name": "sd_bus_default", "args": [ct.POINTER(ct.POINTER(sd_bus))] },
 	{ "name": "sd_bus_default_user", "args": [ct.POINTER(ct.POINTER(sd_bus))] },
 	{ "name": "sd_bus_default_system", "args": [ct.POINTER(ct.POINTER(sd_bus))] },
@@ -169,6 +170,21 @@ library_functions = [
 	
 	{ "name": "sd_bus_is_open", "args": [ct.POINTER(sd_bus)] },
 	{ "name": "sd_bus_is_ready", "args": [ct.POINTER(sd_bus)] },
+	{ "name": "sd_bus_can_send", "args": [ct.POINTER(sd_bus), ct.c_char] },
+	
+	{ "name": "sd_bus_negotiate_creds", "args": [ct.POINTER(sd_bus), ct.c_int, ct.c_uint64] },
+	{ "name": "sd_bus_negotiate_timestamp", "args": [ct.POINTER(sd_bus), ct.c_int] },
+	{ "name": "sd_bus_negotiate_fds", "args": [ct.POINTER(sd_bus), ct.c_int] },
+	
+	{ "name": "sd_bus_set_address", "args": [ct.POINTER(sd_bus), ct.c_char_p] },
+	{ "name": "sd_bus_get_address", "args": [ct.POINTER(sd_bus), ct.POINTER(ct.c_char_p)] },
+	{ "name": "sd_bus_set_bus_client", "args": [ct.POINTER(sd_bus), ct.c_int] },
+	{ "name": "sd_bus_is_bus_client", "args": [ct.POINTER(sd_bus)] },
+	{ "name": "sd_bus_set_monitor", "args": [ct.POINTER(sd_bus), ct.c_int] },
+	{ "name": "sd_bus_is_monitor", "args": [ct.POINTER(sd_bus)] },
+	{ "name": "sd_bus_start", "args": [ct.POINTER(sd_bus)] },
+	{ "name": "sd_bus_try_close", "args": [ct.POINTER(sd_bus)] },
+	{ "name": "sd_bus_close", "args": [ct.POINTER(sd_bus)], "restype": None },
 	
 	{ "name": "sd_bus_call_method", "args": [
 				ct.POINTER(sd_bus),
@@ -238,7 +254,8 @@ library_functions = [
 	{ "name": "sd_bus_message_get_error", "args": [ct.POINTER(sd_bus_message)], "restype": ct.POINTER(sd_bus_error) },
 	{ "name": "sd_bus_message_get_errno", "args": [ct.POINTER(sd_bus_message)] },
 	
-	
+	{ "name": "sd_bus_add_filter", "args": [ct.POINTER(sd_bus), ct.POINTER(ct.POINTER(sd_bus_slot)),
+										sd_bus_message_handler_t, ct.py_object]},
 	{ "name": "sd_bus_add_match", "args": [ct.POINTER(sd_bus), ct.POINTER(ct.POINTER(sd_bus_slot)),
 										ct.c_char_p, sd_bus_message_handler_t, ct.py_object]},
 	{ "name": "sd_bus_add_match_async", "args": [ct.POINTER(sd_bus), ct.POINTER(ct.POINTER(sd_bus_slot)),
@@ -368,7 +385,7 @@ def ct_call(*nargs, **kwargs):
 	#print(call, newargs)
 	res = func(*newargs)
 	
-	if debug:
+	if verbosity > 1:
 		print(call, newargs, "=", res)
 	
 	if (check is None or check) and func.restype in [ct.c_long, ct.c_int] and res < 0:

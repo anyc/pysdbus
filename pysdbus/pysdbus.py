@@ -19,12 +19,12 @@
 
 from __future__ import print_function
 from functools import wraps as ft_wraps
-import sys, llapi
+import sys, llapi, os
 
 from llapi import *
 from header import *
 
-class DBusValue():
+class DBusValue(object):
 	def __init__(self, *args, **kwargs):
 		self.signature = None
 
@@ -78,6 +78,18 @@ class Boolean(int, BasicType):
 		return obj
 
 class NumberClass(BasicType):
+	def __init__(self, value):
+		self.value = value
+	
+	def __int__(self):
+		return self.value
+	
+	def __float__(self):
+		return self.value
+	
+	def __repr__(self):
+		return str(self.value)
+	
 	@classmethod
 	def getObject(cls, msg, signature, offset):
 		if msg:
@@ -124,7 +136,7 @@ number_to_type = [
 	]
 
 for triple in number_to_type:
-	c = type(triple[0], (triple[3], NumberClass, ), {
+	c = type(triple[0], (NumberClass, ), {
 		"codes": triple[1],
 		"c_type": triple[2],
 		"py_type": triple[3],
@@ -948,9 +960,7 @@ class Match():
 		if values is None:
 			values = ()
 		
-		self.callback(*values)
-		
-		return 0
+		return self.callback(*values)
 	
 	def remove(self):
 		self.bus.del_match(self)
@@ -972,20 +982,28 @@ class Bus():
 	def setup(self):
 		if not self.no_implicit_root_object:
 			self.root_object = Object("/", bus=self, add_object_manager=True)
+	
+	def become_monitor(self):
+		### this function just sets a flag that will cause some sdbus functions
+		### to become a no-op
+		#sd_bus_set_monitor(self.bus, mode)
 		
-		#def callback(*args):
-			#print(args)
-			#self.nonblocking = True
+		obj = self.getObject("org.freedesktop.DBus", "/org/freedesktop/DBus")
 		
-		#self.add_match("type='signal'", callback)
+		iface = obj.getInterface("org.freedesktop.DBus.Monitoring")
 		
-		#while not self.nonblocking:
-			#self.processEvents()
-			
-			#sd_bus_wait(self.bus, ct.c_uint64(1000000))
-			
-			#if sd_bus_is_open(self.bus):
-				#break
+		iface.BecomeMonitor([], UInt32(0), signature="asu")
+	
+	def add_filter(self, callback, userdata=None, raw_callback=False):
+		m = Match(self, None, callback, userdata, raw_callback)
+		self.matches.append(m)
+		
+		if verbosity > 1:
+			print("new filter")
+		
+		sd_bus_add_filter(self.bus, ct.byref(m.ct_slot), m.ct_callback, m.ct_userdata)
+		
+		return m
 	
 	def add_match(self, match_string, callback, userdata=None, raw_callback=False):
 		m = Match(self, match_string, callback, userdata, raw_callback)
@@ -1030,6 +1048,19 @@ class SystemBus(Bus):
 			sd_bus_default_system(ct.byref(self.bus))
 		else:
 			sd_bus_open_system(ct.byref(self.bus))
+		
+		#bus_addr = "unix:path=/run/dbus/system_bus_socket"
+		#if "DBUS_SYSTEM_BUS_ADDRESS" in os.environ:
+			#bus_addr = os.environ["DBUS_SYSTEM_BUS_ADDRESS"]
+		
+		#sd_bus_new(ct.byref(self.bus))
+		#sd_bus_set_monitor(self.bus, 1)
+		#sd_bus_negotiate_creds(self.bus, 1, SD_BUS_CREDS_ALL)
+		#sd_bus_negotiate_timestamp(self.bus, 1)
+		#sd_bus_negotiate_fds(self.bus, 1)
+		#sd_bus_set_address(self.bus, bus_addr)
+		#sd_bus_set_bus_client(self.bus, 1)
+		#sd_bus_start(self.bus)
 		
 		self.setup()
 
@@ -1113,7 +1144,7 @@ class Object(object):
 	def refresh(self, iface=None, prop=None):
 		for iface in self.dbus_properties:
 			if prop in self.dbus_properties[iface]:
-				print(self.bus.bus, self.path, iface, prop)
+				#print(self.bus.bus, self.path, iface, prop)
 				sd_bus_emit_properties_changed(self.bus.bus, self.path, iface, prop, None)
 	
 	@staticmethod
