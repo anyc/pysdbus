@@ -254,6 +254,11 @@ library_functions = [
 	{ "name": "sd_bus_message_get_error", "args": [ct.POINTER(sd_bus_message)], "restype": ct.POINTER(sd_bus_error) },
 	{ "name": "sd_bus_message_get_errno", "args": [ct.POINTER(sd_bus_message)] },
 	
+	{ "name": "sd_bus_message_get_type", "args": [ct.POINTER(sd_bus_message), ct.POINTER(ct.c_uint8)] },
+	{ "name": "sd_bus_message_get_cookie", "args": [ct.POINTER(sd_bus_message), ct.POINTER(ct.c_uint64)] },
+	{ "name": "sd_bus_message_get_reply_cookie", "args": [ct.POINTER(sd_bus_message), ct.POINTER(ct.c_uint64)] },
+	{ "name": "sd_bus_message_get_priority", "args": [ct.POINTER(sd_bus_message), ct.POINTER(ct.c_int64)] },
+	
 	{ "name": "sd_bus_add_filter", "args": [ct.POINTER(sd_bus), ct.POINTER(ct.POINTER(sd_bus_slot)),
 										sd_bus_message_handler_t, ct.py_object]},
 	{ "name": "sd_bus_add_match", "args": [ct.POINTER(sd_bus), ct.POINTER(ct.POINTER(sd_bus_slot)),

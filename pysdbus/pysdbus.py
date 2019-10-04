@@ -640,7 +640,9 @@ class MessageProxy():
 			i += 1
 	
 	def __getattr__(self, item):
-		if item in ["sender", "destination", "signature", "path", "interface", "member"]:
+		if item in ["sender", "destination", "signature", "path", "interface", "member",
+					"type", "cookie", "reply_cookie", "priority",
+			]:
 			fct = getattr(sys.modules[__name__], "sd_bus_message_get_"+item, None)
 			if fct:
 				if item == "signature":
@@ -651,6 +653,9 @@ class MessageProxy():
 						return ""
 					else:
 						return result
+		
+		if item == "values":
+			return self.get_values()
 		
 		return object.__getattribute__(self, item)
 	
@@ -710,7 +715,8 @@ class AsyncCall():
 			  args, kwargs,
 			  async_callback,
 			  reply_callback,
-			  error_callback,):
+			  error_callback,
+		):
 		
 		self.iface_proxy = iface_proxy
 		self.method_name = method_name
@@ -937,7 +943,7 @@ class ObjectProxy():
 			return self.introspection_proxy.interfaces
 
 class Match():
-	def __init__(self, bus, match_string, callback, userdata, raw_callback=False):
+	def __init__(self, bus, match_string, callback, userdata, msg_proxy_callback=False, raw_callback=False):
 		self.bus = bus
 		self.match_string = match_string
 		
@@ -946,13 +952,15 @@ class Match():
 		
 		if raw_callback:
 			self.ct_callback = sd_bus_message_handler_t(self.callback)
+		elif msg_proxy_callback:
+			self.ct_callback = sd_bus_message_handler_t(self.mp_callback_wrapper)
 		else:
-			self.ct_callback = sd_bus_message_handler_t(self.callback_wrapper)
+			self.ct_callback = sd_bus_message_handler_t(self.values_callback_wrapper)
 		self.ct_userdata = ct.py_object(userdata)
 		
 		self.ct_slot = ct.POINTER(sd_bus_slot)()
 	
-	def callback_wrapper(self, ct_msg, userdata, ret_error):
+	def values_callback_wrapper(self, ct_msg, userdata, ret_error):
 		mp = MessageProxy(ct_msg)
 		
 		values = mp.get_values(raw_result=True)
@@ -961,6 +969,11 @@ class Match():
 			values = ()
 		
 		return self.callback(*values)
+	
+	def mp_callback_wrapper(self, ct_msg, userdata, ret_error):
+		mp = MessageProxy(ct_msg)
+		
+		return self.callback(mp)
 	
 	def remove(self):
 		self.bus.del_match(self)
@@ -983,7 +996,7 @@ class Bus():
 		if not self.no_implicit_root_object:
 			self.root_object = Object("/", bus=self, add_object_manager=True)
 	
-	def become_monitor(self):
+	def become_monitor(self, rules=None, flags=None):
 		### this function just sets a flag that will cause some sdbus functions
 		### to become a no-op
 		#sd_bus_set_monitor(self.bus, mode)
@@ -992,10 +1005,17 @@ class Bus():
 		
 		iface = obj.getInterface("org.freedesktop.DBus.Monitoring")
 		
-		iface.BecomeMonitor([], UInt32(0), signature="asu")
+		if rules is None:
+			rules = []
+		if flags is None:
+			flags = UInt32(0)
+		if not isinstance(flags, UInt32):
+			flags = UInt32(flags)
+		
+		iface.BecomeMonitor(rules, flags, signature="asu")
 	
-	def add_filter(self, callback, userdata=None, raw_callback=False):
-		m = Match(self, None, callback, userdata, raw_callback)
+	def add_filter(self, callback, userdata=None, msg_proxy_callback=False, raw_callback=False):
+		m = Match(self, None, callback, userdata, msg_proxy_callback, raw_callback)
 		self.matches.append(m)
 		
 		if verbosity > 1:
@@ -1005,8 +1025,8 @@ class Bus():
 		
 		return m
 	
-	def add_match(self, match_string, callback, userdata=None, raw_callback=False):
-		m = Match(self, match_string, callback, userdata, raw_callback)
+	def add_match(self, match_string, callback, userdata=None, msg_proxy_callback=False, raw_callback=False):
+		m = Match(self, match_string, callback, userdata, msg_proxy_callback, raw_callback)
 		self.matches.append(m)
 		
 		if verbosity > 1:
