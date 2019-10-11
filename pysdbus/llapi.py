@@ -272,8 +272,6 @@ library_functions = [
 	{ "name": "sd_bus_add_node_enumerator", "args": [ct.POINTER(sd_bus), ct.POINTER(ct.POINTER(sd_bus_slot)), ct.c_char_p, sd_bus_node_enumerator_t, ct.py_object] },
 	{ "name": "sd_bus_add_object_manager", "args": [ct.POINTER(sd_bus), ct.POINTER(ct.POINTER(sd_bus_slot)), ct.c_char_p] },
 	
-	{ "name": "sd_bus_message_is_method_call", "args": [ct.POINTER(sd_bus_message), ct.c_char_p, ct.c_char_p]},
-	
 	{ "name": "sd_bus_message_new_method_call", "args": [ct.POINTER(sd_bus), ct.POINTER(ct.POINTER(sd_bus_message)),
 													 ct.c_char_p, ct.c_char_p, ct.c_char_p, ct.c_char_p] },
 	
@@ -288,14 +286,6 @@ library_functions = [
 	
 	{ "name": "sd_bus_message_ref", "args": [ct.POINTER(sd_bus_message)], "restype": ct.POINTER(sd_bus_message) },
 	{ "name": "sd_bus_message_unref", "args": [ct.POINTER(sd_bus_message)], "restype": ct.POINTER(sd_bus_message) },
-	
-	{ "name": "sd_bus_get_fd", "args": [ct.POINTER(sd_bus)] },
-	{ "name": "sd_bus_get_events", "args": [ct.POINTER(sd_bus)] },
-	{ "name": "sd_bus_get_timeout", "args": [ct.POINTER(sd_bus), ct.POINTER(ct.c_uint64) ] },
-	{ "name": "sd_bus_process", "args": [ct.POINTER(sd_bus), ct.POINTER(ct.POINTER(sd_bus_message)) ] },
-	{ "name": "sd_bus_process_priority", "args": [ct.POINTER(sd_bus), ct.c_int64, ct.POINTER(ct.POINTER(sd_bus_message)) ] },
-	{ "name": "sd_bus_wait", "args": [ct.POINTER(sd_bus), ct.c_uint64] },
-	{ "name": "sd_bus_flush", "args": [ct.POINTER(sd_bus)] },
 	
 	{ "name": "sd_bus_slot_ref", "args": [ct.POINTER(sd_bus_slot)], "restype": ct.POINTER(sd_bus_slot) },
 	{ "name": "sd_bus_slot_unref", "args": [ct.POINTER(sd_bus_slot)], "restype": ct.POINTER(sd_bus_slot) },
@@ -350,6 +340,9 @@ for f in library_functions:
 			
 			return ct_call(f["name"], *nargs, args=args, restype=restype)
 		return dyn_fct
+	
+	if hasattr(sys.modules[__name__], f["name"]):
+		print("duplicate function", f["name"])
 	
 	setattr(sys.modules[__name__], f["name"], function_factory(f))
 

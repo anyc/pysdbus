@@ -655,7 +655,8 @@ class MessageProxy():
 						return result
 		
 		if item == "values":
-			return self.get_values()
+			self.values = self.get_values(raw_result=True)
+			return self.values
 		
 		return object.__getattribute__(self, item)
 	
@@ -989,6 +990,7 @@ class Bus():
 		
 		self.matches = []
 		self.fd = -1
+		self.evloop_data = None
 		self.no_implicit_root_object = kwargs.get("no_implicit_root_object", False)
 		self.root_object = None
 	
@@ -1107,33 +1109,76 @@ class EventLoop():
 		
 		self.fd2bus[bus.fd] = bus
 	
+	def poll2epoll(self, poll_events):
+		from select import EPOLLIN, EPOLLOUT, EPOLLPRI, POLLIN, POLLOUT, POLLPRI
+		
+		epoll_events = 0
+		if poll_events & POLLIN:
+			epoll_events |= EPOLLIN
+		if poll_events & POLLOUT:
+			epoll_events |= EPOLLOUT
+		if poll_events & POLLPRI:
+			epoll_events |= EPOLLPRI
+		
+		return epoll_events
+	
 	def loop_single_bus(self, timeout_us=-1):
 		while not self._stop:
 			self.buses[0].processEvents()
 			
+			# timeout in microseconds
 			sd_bus_wait(self.buses[0].bus, ct.c_uint64(timeout_us))
 	
 	def loop_multiple_buses(self, timeout_us=-1):
-		from select import epoll, EPOLLIN, EPOLLOUT
+		from select import epoll, EPOLLIN, EPOLLOUT, EPOLLERR
+		from sys import maxsize as sys_maxsize
 		
-		self.ep = epoll()
-		for bus in self.buses:
-			self.ep.register(bus.fd, EPOLLIN)
+		self.epoll = epoll()
 		
 		while not self._stop:
-			events = self.ep.poll(timeout_us)
+			epoll_timeout_us = timeout_us
+			
+			# determine epoll event flags and the next timeout for each bus
+			for bus in self.buses:
+				# call processEvents() at least once before calling sd_bus_get_events()
+				if bus.evloop_data is None:
+					bus.processEvents()
+					
+				events = sd_bus_get_events(bus.bus)
+				
+				if bus.evloop_data is None:
+					self.epoll.register(bus.fd, self.poll2epoll(events))
+				elif self.poll2epoll(events) != bus.evloop_data:
+					self.epoll.modify(bus.fd, self.poll2epoll(events))
+				
+				bus.evloop_data = self.poll2epoll(events)
+				
+				sdbus_timeout_us = ct.c_uint64(0)
+				err = sd_bus_get_timeout(bus.bus, ct.byref(sdbus_timeout_us))
+				if err < 0:
+					print("sd_bus_get_timeout() failed with", err)
+				
+				sdbus_timeout_us = sdbus_timeout_us.value
+				
+				if epoll_timeout_us == -1:
+					epoll_timeout_us = sdbus_timeout_us
+				elif sdbus_timeout_us < epoll_timeout_us:
+					epoll_timeout_us = sdbus_timeout_us
+			
+			# epoll expects the timeout in seconds as float
+			if epoll_timeout_us > -1:
+				epoll_timeout_us = epoll_timeout_us / 1000000.0
+				if epoll_timeout_us > sys_maxsize:
+					epoll_timeout_us = -1;
+			
+			events = self.epoll.poll(epoll_timeout_us)
+			
 			for fd, event in events:
 				if fd not in self.fd2bus:
 					continue
 				
 				bus = self.fd2bus[fd]
-				
 				bus.processEvents()
-				
-				# TODO
-				#sd_bus_get_timeout(bus.bus, None)
-				#sd_bus_get_events(bus.bus)
-				# self.ep.modify(fd, )
 	
 	def loop(self, timeout_us=-1):
 		self._stop = False
