@@ -317,6 +317,18 @@ library_functions = [
 	{ "name": "sd_bus_message_is_method_error", "args": [ct.POINTER(sd_bus_message), ct.c_char_p] },
 	{ "name": "sd_bus_message_is_empty", "args": [ct.POINTER(sd_bus_message)] },
 	{ "name": "sd_bus_message_has_signature", "args": [ct.POINTER(sd_bus_message), ct.c_char_p] },
+	
+	{ "name": "sd_bus_track_new", "args": [ct.POINTER(sd_bus), ct.POINTER(ct.POINTER(sd_bus_track)), sd_bus_track_handler_t, ct.c_void_p] },
+	{ "name": "sd_bus_track_ref", "args": [ct.POINTER(sd_bus_track)], "restype": ct.POINTER(sd_bus_track) },
+	{ "name": "sd_bus_track_unref", "args": [ct.POINTER(sd_bus_track)], "restype": ct.POINTER(sd_bus_track) },
+	
+	{ "name": "sd_bus_track_get_userdata", "args": [ct.POINTER(sd_bus_track)], "restype": ct.c_void_p },
+	{ "name": "sd_bus_track_set_userdata", "args": [ct.POINTER(sd_bus_track), ct.c_void_p], "restype": ct.c_void_p },
+	
+	{ "name": "sd_bus_track_add_sender", "args": [ct.POINTER(sd_bus_track), ct.POINTER(sd_bus_message)]) },
+	{ "name": "sd_bus_track_remove_sender", "args": [ct.POINTER(sd_bus_track), ct.POINTER(sd_bus_message)]) },
+	{ "name": "sd_bus_track_add_name", "args": [ct.POINTER(sd_bus_track), ct.c_char_p]) },
+	{ "name": "sd_bus_track_remove_name", "args": [ct.POINTER(sd_bus_track), ct.c_char_p]) },
 	]
 
 libsystemd = ct.CDLL('libsystemd.so.0')
@@ -342,7 +354,7 @@ for f in library_functions:
 		return dyn_fct
 	
 	if hasattr(sys.modules[__name__], f["name"]):
-		print("duplicate function", f["name"])
+		print("duplicate function", f["name"], file=sys.stderr)
 	
 	setattr(sys.modules[__name__], f["name"], function_factory(f))
 

@@ -24,6 +24,22 @@ import sys, llapi, os
 from llapi import *
 from header import *
 
+class PropertyNotFound(Exception):
+	def __init__(self, obj, intf, prop):
+		self.obj = obj
+		self.intf = intf
+		self.prop = prop
+
+class MethodNotFound(Exception):
+	def __init__(self, obj, intf, method):
+		self.obj = obj
+		self.intf = intf
+		self.method = method
+
+class PeerNotFound(Exception):
+	def __init__(self, obj):
+		self.obj = obj
+
 class DBusValue(object):
 	def __init__(self, *args, **kwargs):
 		self.signature = None
@@ -809,13 +825,22 @@ class MethodProxy():
 		error = sd_bus_error()
 		reply = ct.POINTER(sd_bus_message)()
 		
-		sd_bus_call(
-			self.object_proxy.bus.bus,
-			mp.ct_msg,
-			-1,
-			ct.byref(error),
-			ct.byref(reply)
-			)
+		try:
+			sd_bus_call(
+				self.object_proxy.bus.bus,
+				mp.ct_msg,
+				-1,
+				ct.byref(error),
+				ct.byref(reply)
+				)
+		except OSError as e:
+			# TODO check if there can be other cases with the same error code
+			if e.errno == -53:
+				raise MethodNotFound(self.object_proxy, self.iface_proxy, self.method_name)
+			elif e.errno == -113:
+				raise PeerNotFound(self.object_proxy)
+			else:
+				raise
 		
 		reply = MessageProxy(reply)
 		
@@ -895,7 +920,16 @@ class InterfaceProxy(object):
 	def getProperty(self, prop):
 		dbus_prop_iface = self.object_proxy.getInterface(dbus_properties_interface)
 		
-		return dbus_prop_iface.Get(self.iface_name, prop)
+		try:
+			rv = dbus_prop_iface.Get(self.iface_name, prop)
+		except OSError as e:
+			# TODO check if there can be other cases with the same error code
+			if e.errno == -22:
+				raise PropertyNotFound(self.object_proxy, self, prop)
+			else:
+				raise
+		
+		return rv
 	
 	def setProperty(self, prop, *values, **kwargs):
 		#error = sd_bus_error()
@@ -944,6 +978,9 @@ class ObjectProxy():
 			return self.introspection_proxy.interfaces
 
 class Match():
+	# if raw_callback==True, expects a callback with the low-level sd-bus signature
+	# if raw_callback==False, expects a callback with function parameters matching the values in the sd-bus message
+	# if msg_proxy_callback==True, expects a callback that receives a MessageProxy object a single argument
 	def __init__(self, bus, match_string, callback, userdata, msg_proxy_callback=False, raw_callback=False):
 		self.bus = bus
 		self.match_string = match_string
@@ -969,12 +1006,18 @@ class Match():
 		if values is None:
 			values = ()
 		
-		return self.callback(*values)
+		rv = self.callback(*values)
+		if rv is None:
+			rv = 1
+		return rv
 	
 	def mp_callback_wrapper(self, ct_msg, userdata, ret_error):
 		mp = MessageProxy(ct_msg)
 		
-		return self.callback(mp)
+		rv = self.callback(mp)
+		if rv is None:
+			rv = 1
+		return rv
 	
 	def remove(self):
 		self.bus.del_match(self)
@@ -1048,6 +1091,11 @@ class Bus():
 	
 	def getObject(self, service, path):
 		return ObjectProxy(self, service, path)
+	
+	def addTrigger(self, peer, appeared_cb=None, disappeared_cb=None):
+		t = Trigger(self, peer, appeared_cb, disappeared_cb)
+		
+		return t
 
 class UserBus(Bus):
 	def __init__(self, shared=True):
@@ -1156,7 +1204,7 @@ class EventLoop():
 				sdbus_timeout_us = ct.c_uint64(0)
 				err = sd_bus_get_timeout(bus.bus, ct.byref(sdbus_timeout_us))
 				if err < 0:
-					print("sd_bus_get_timeout() failed with", err)
+					print("sd_bus_get_timeout() failed with", err, file=sys.stderr)
 				
 				sdbus_timeout_us = sdbus_timeout_us.value
 				
@@ -1384,6 +1432,33 @@ class Object(object):
 				#if attr in self.dbus_properties[iface]:
 					#print(self.bus.bus, self.path, iface, attr, obj, None)
 					#sd_bus_emit_properties_changed(self.bus.bus, self.path, iface, attr, None)
+
+class Trigger():
+	trigger_template="type='signal',sender='org.freedesktop.DBus',path='/org/freedesktop/DBus'," \
+		"interface='org.freedesktop.DBus',member='NameOwnerChanged',arg0='%s'"
+	
+	def __init__(self, bus, peer, appeared_cb=None, disappeared_cb=None):
+		self.bus = bus
+		self.peer = peer
+		self.appeared = appeared_cb
+		self.disappeared = disappeared_cb
+		
+		self.match = self.bus.add_match(self.__class__.trigger_template % peer, self.callback, msg_proxy_callback=True)
+	
+	def __del__(self):
+		self.bus.del_match(self)
+	
+	def callback(self, mp):
+		peer, old, new = mp.get_values(raw_result=True)
+		
+		if peer != self.peer:
+			print("error, unexpected peer", peer, "!=", self.peer)
+			return
+		
+		if not old and new:
+			self.appeared(peer, new)
+		elif old and not new:
+			self.disappeared(peer, old)
 
 if __name__ == '__main__':
 	import os
