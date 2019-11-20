@@ -900,14 +900,14 @@ class InterfaceProxy(object):
 		else:
 			return object.__getattr__(item)
 	
-	def add_match(self, member, callback, userdata=None, raw_callback=False):
+	def add_match(self, member, callback, userdata=None, raw_callback=False, msg_proxy_callback=False):
 		match_string = "type='signal'"
 		match_string += ",interface='"+self.iface_name+"'"
 		match_string += ",sender='"+self.object_proxy.service+"'"
 		match_string += ",path='"+self.object_proxy.path+"'"
 		match_string += ",member='"+member+"'"
 		
-		return self.object_proxy.bus.add_match(match_string, callback, userdata, raw_callback)
+		return self.object_proxy.bus.add_match(match_string, callback, userdata, raw_callback=raw_callback, msg_proxy_callback=msg_proxy_callback)
 	
 	def getSignatures(self, member=None):
 		intro_obj = self.object_proxy.getIntrospectProxy()

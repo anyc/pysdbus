@@ -34,9 +34,23 @@ def show_iface(obj, iface, signatures=None):
 				out_sign = entry.get("out", "")
 				in_sign = entry.get("in", "")
 				
-				print("\t", item+"("+in_sign+")"+" = "+out_sign+"")
+				name = item
+				if entry["type"] == "method":
+					name += "("+in_sign+")"
+				
+				print("\t", name+" = "+out_sign+"")
 			else:
 				print("\t", item+" \""+entry["signature"]+"\" "+entry["access"])
+
+def is_signal(obj, iface, item):
+	signatures = obj.getSignatures()
+	
+	if iface in signatures and item in signatures[iface]:
+		entry = signatures[iface][item]
+		
+		return entry["type"] == "signal"
+	else:
+		return False
 
 if __name__ == '__main__':
 	from argparse import ArgumentParser, REMAINDER
@@ -46,7 +60,7 @@ if __name__ == '__main__':
 	ap.add_argument("--system", action="store_true")
 	ap.add_argument("-d", "--debug", action="store_true")
 	
-	ap.add_argument('argv', nargs=REMAINDER)
+	ap.add_argument('argv', nargs=REMAINDER, help="[service] [path] [interface] [item] [values]")
 	args = ap.parse_args()
 	
 	if args.debug:
@@ -79,7 +93,7 @@ if __name__ == '__main__':
 		
 		dic = {}
 		for name in reply:
-			pid = dbus_iface.GetConnectionUnixProcessID(name)
+			pid = int(dbus_iface.GetConnectionUnixProcessID(name))
 			if pid not in dic:
 				dic[pid] = []
 			dic[pid].append(name)
@@ -87,7 +101,7 @@ if __name__ == '__main__':
 		print("ProcessID | Services")
 		for pid in sorted(dic.keys()):
 			services = sorted(dic[pid])
-			print(pid, "|", " ".join(services))
+			print("%5d |" % pid, " ".join(services))
 		
 		sys.exit(0)
 	
@@ -139,23 +153,41 @@ if __name__ == '__main__':
 		
 		prop_iface.Set(iface, item, "s", argv[5], signature="ssv")
 	else:
-		prop_iface = obj.getInterface(pysdbus.dbus_properties_interface)
-		
-		try:
-			value = prop_iface.Get(iface, item)
-			found = True
-		except Exception as e:
-			if isinstance(e, OSError) and e.errno == -53:
+		if is_signal(obj, iface, item):
+			obj_iface = obj.getInterface(iface)
+			
+			def signal_cb(mp):
+				mp.dump()
+			
+			obj_iface.add_match(item, signal_cb, msg_proxy_callback=True)
+			
+			eloop = pysdbus.EventLoop(bus)
+			try:
+				eloop.loop()
+			except KeyboardInterrupt:
+				eloop.stop()
+		else:
+			prop_iface = obj.getInterface(pysdbus.dbus_properties_interface)
+			
+			try:
+				value = prop_iface.Get(iface, item)
+				found = True
+			except pysdbus.MethodNotFound:
 				found = False
-			else:
+			except Exception as e:
 				raise
-		
-		if found:
-			print(iface, item, value)
-			sys.exit(0)
-		
-		obj_iface = obj.getInterface(iface)
-		
-		mp = pysdbus.MethodProxy(obj_iface, item)
-		
-		print(mp.call())
+			
+			if found:
+				print(iface, item, value)
+				sys.exit(0)
+			
+			obj_iface = obj.getInterface(iface)
+			
+			
+			mp = pysdbus.MethodProxy(obj_iface, item)
+			
+			try:
+				print(mp.call())
+			except pysdbus.MethodNotFound:
+				print("error, no such method found", file=sys.stderr)
+				sys.exit(1)

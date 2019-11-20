@@ -325,10 +325,10 @@ library_functions = [
 	{ "name": "sd_bus_track_get_userdata", "args": [ct.POINTER(sd_bus_track)], "restype": ct.c_void_p },
 	{ "name": "sd_bus_track_set_userdata", "args": [ct.POINTER(sd_bus_track), ct.c_void_p], "restype": ct.c_void_p },
 	
-	{ "name": "sd_bus_track_add_sender", "args": [ct.POINTER(sd_bus_track), ct.POINTER(sd_bus_message)]) },
-	{ "name": "sd_bus_track_remove_sender", "args": [ct.POINTER(sd_bus_track), ct.POINTER(sd_bus_message)]) },
-	{ "name": "sd_bus_track_add_name", "args": [ct.POINTER(sd_bus_track), ct.c_char_p]) },
-	{ "name": "sd_bus_track_remove_name", "args": [ct.POINTER(sd_bus_track), ct.c_char_p]) },
+	{ "name": "sd_bus_track_add_sender", "args": [ct.POINTER(sd_bus_track), ct.POINTER(sd_bus_message)] },
+	{ "name": "sd_bus_track_remove_sender", "args": [ct.POINTER(sd_bus_track), ct.POINTER(sd_bus_message)] },
+	{ "name": "sd_bus_track_add_name", "args": [ct.POINTER(sd_bus_track), ct.c_char_p] },
+	{ "name": "sd_bus_track_remove_name", "args": [ct.POINTER(sd_bus_track), ct.c_char_p] },
 	]
 
 libsystemd = ct.CDLL('libsystemd.so.0')
