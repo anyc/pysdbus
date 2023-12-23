@@ -82,6 +82,10 @@ if __name__ == '__main__':
 	argv = [sys.argv[0]] + args.argv
 	
 	if len(argv) == 1:
+		#
+		# show a list of available services
+		#
+		
 		obj = bus.getObject("org.freedesktop.DBus", "/org/freedesktop/DBus")
 		
 		iface = obj.getInterface("org.freedesktop.DBus")
@@ -106,13 +110,25 @@ if __name__ == '__main__':
 		sys.exit(0)
 	
 	if len(argv) >= 2:
+		#
+		# the following code works with a service whose name we get here
+		#
+		
 		service = argv[1]
 	
 	if len(argv) >= 3:
+		#
+		# the following code works with a object whose path and proxy object we get here
+		#
+		
 		path = argv[2]
 		
 		obj = bus.getObject(service, path)
 	else:
+		#
+		# show all objects of the service
+		#
+		
 		def print_obj_tree(obj_path):
 			obj = bus.getObject(service, obj_path)
 			
@@ -131,8 +147,16 @@ if __name__ == '__main__':
 		sys.exit(0)
 	
 	if len(argv) >= 4:
+		#
+		# the following code works with the requested interface of the object
+		#
+		
 		iface = argv[3]
 	else:
+		#
+		# show the interfaces of the object and the contents of the interface
+		##
+		
 		signatures = obj.getSignatures()
 		
 		for iface in sorted(signatures.keys()):
@@ -143,17 +167,32 @@ if __name__ == '__main__':
 		sys.exit(0)
 	
 	if len(argv) >= 5:
+		#
+		# the following code works with a property, method or signal
+		#
+		
 		item = argv[4]
 	else:
+		#
+		# show only this interface
+		#
+		
 		show_iface(obj, iface)
 		sys.exit(0)
 	
 	if len(argv) >= 6:
+		#
+		# set a property to the given value
+		#
+		
 		prop_iface = obj.getInterface(pysdbus.dbus_properties_interface)
 		
 		prop_iface.Set(iface, item, "s", argv[5], signature="ssv")
 	else:
 		if is_signal(obj, iface, item):
+			#
+			# subscribe to a signal
+			#
 			obj_iface = obj.getInterface(iface)
 			
 			def signal_cb(mp):
@@ -167,6 +206,11 @@ if __name__ == '__main__':
 			except KeyboardInterrupt:
 				eloop.stop()
 		else:
+			#
+			# First, check if the given name is a property. If yes, show the
+			# property value. If not, assume this is a method and call it.
+			#
+			
 			prop_iface = obj.getInterface(pysdbus.dbus_properties_interface)
 			
 			try:
