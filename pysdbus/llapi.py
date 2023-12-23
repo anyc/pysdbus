@@ -21,7 +21,7 @@ from __future__ import print_function
 import os, sys
 import ctypes as ct
 
-from header import *
+from .header import *
 
 class sd_bus(ct.Structure):
 	pass

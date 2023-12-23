@@ -20,8 +20,8 @@
 from __future__ import print_function
 import sys
 
-from llapi import *
-from header import *
+from .llapi import *
+from .header import *
 import pysdbus
 
 class MessageProxy(pysdbus.MessageProxy):

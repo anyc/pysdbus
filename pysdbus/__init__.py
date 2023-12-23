@@ -17,9 +17,9 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #
 
-from header import *
-from pysdbus import *
+from .header import *
+from .pysdbus import *
 
-import llapi
-import dbus
+from . import llapi
+from . import dbus
 

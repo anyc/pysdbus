@@ -19,10 +19,10 @@
 
 from __future__ import print_function
 from functools import wraps as ft_wraps
-import sys, llapi, os
+import sys, os
 
-from llapi import *
-from header import *
+from .llapi import *
+from .header import *
 
 class PropertyNotFound(Exception):
 	def __init__(self, obj, intf, prop):
