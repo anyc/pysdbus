@@ -771,6 +771,7 @@ class AsyncCall():
 			  async_callback,
 			  reply_callback,
 			  error_callback,
+			  timeout_us=None,
 		):
 		
 		self.iface_proxy = iface_proxy
@@ -810,12 +811,15 @@ class AsyncCall():
 		mp = MessageProxy(self.ct_msg)
 		mp.set_values(self.signature, *args)
 		
+		if timeout_us is None:
+			timeout_us = -1
+		
 		sd_bus_call_async(
 			self.object_proxy.bus.bus,
 			ct.byref(self.ct_slot),
 			self.ct_msg,
 			self.ct_callback, None,
-			-1
+			timeout_us
 			)
 	
 	def callback_wrapper(self, ct_msg, userdata, ret_error):
@@ -859,15 +863,18 @@ class MethodProxy():
 		
 		return mp
 	
-	def send_call(self, mp):
+	def send_call(self, mp, timeout_us=None):
 		error = sd_bus_error()
 		reply = ct.POINTER(sd_bus_message)()
+		
+		if timeout_us is None:
+			timeout_us = -1
 		
 		try:
 			sd_bus_call(
 				self.object_proxy.bus.bus,
 				mp.ct_msg,
-				-1,
+				timeout_us,
 				ct.byref(error),
 				ct.byref(reply)
 				)
@@ -905,13 +912,18 @@ class MethodProxy():
 		
 		mp.set_values(sign, *args)
 		
-		return self.send_call(mp)
+		timeout_us = kwargs.get("timeout_us", None)
+		
+		return self.send_call(mp, timeout_us)
 	
 	def async_call(self, *args, **kwargs):
+		timeout_us = kwargs.get("timeout_us", None)
+		
 		ac = AsyncCall(self.iface_proxy, self.method_name, args, kwargs,
 				 async_callback=kwargs.get("async_callback", None),
 				 reply_callback=kwargs.get("reply_callback", None),
-				 error_callback=kwargs.get("error_callback", None))
+				 error_callback=kwargs.get("error_callback", None),
+				 timeout_us=timeout_us)
 		
 		# keep reference to avoid a release by the garbage collector
 		self.iface_proxy.async_calls.append(ac)
