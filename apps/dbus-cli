@@ -240,7 +240,7 @@ if __name__ == '__main__':
 					raise
 				
 				if found:
-					print("%s.%s" % (iface, item), value)
+					print("%s %s" % (iface, item), value)
 					sys.exit(0)
 			else:
 				def on_prop_changed_cb(new_value):
