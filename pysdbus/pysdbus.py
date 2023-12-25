@@ -689,48 +689,80 @@ class MessageProxy():
 
 class IntrospectionProxy():
 	def __init__(self, *args):
+		self.dbus_object = None
+		self.introspect_iface = None
 		self.xml = None
+		self.root = None
+		self.interfaces = None
 		
 		if len(args) > 0:
 			if isinstance(args[0], ObjectProxy):
-				introspect_iface = args[0].getInterface(dbus_introspectable_interface)
-				
-				self.xml = introspect_iface.Introspect()
+				self.dbus_object = args[0]
 			elif isinstance(args[0], str):
 				self.xml = args[0]
 			else:
 				raise Exception("unexpected arg", args)
 	
-	def parse(self):
-		import xml.etree.ElementTree as et
-		
-		self.root = et.fromstring(self.xml)
-	
-	def getInterfaces(self):
-		self.interfaces = {}
-		
-		for interface in self.root.findall("interface"):
-			self.interfaces[interface.attrib["name"]] = {}
-			iface_dict = self.interfaces[interface.attrib["name"]]
-			for method in interface.findall("method"):
-				iface_dict[method.attrib["name"]] = { "type": "method", "in": "", "out": "" }
-				method_dict = iface_dict[method.attrib["name"]]
-				for arg in method.findall("arg"):
-					method_dict[arg.attrib["direction"]] += arg.attrib["type"]
+	def getXML(self, no_cache=False):
+		if self.xml is None or no_cache:
+			if self.dbus_object is None:
+				raise Exception("no DBus object and no XML string")
 			
-			for signal in interface.findall("signal"):
-				iface_dict[signal.attrib["name"]] = { "type": "signal", "out": "" }
-				signal_dict = iface_dict[signal.attrib["name"]]
-				for arg in signal.findall("arg"):
-					signal_dict["out"] = arg.attrib["type"]
+			if self.introspect_iface is None:
+				self.introspect_iface = self.dbus_object.getInterface(dbus_introspectable_interface)
 			
-			for prop in interface.findall("property"):
-				iface_dict[prop.attrib["name"]] = { "type": "property",
-									   "signature": prop.attrib["type"],
-									   "access": prop.attrib["access"],
-									   }
+			self.xml = self.introspect_iface.Introspect()
+		
+		return self.xml
 	
-	def getSignatures(self, interface, member):
+	def parse(self, no_cache=False):
+		if self.root is None or no_cache:
+			import xml.etree.ElementTree as et
+			
+			if self.xml is None:
+				self.getXML(no_cache=no_cache)
+			
+			self.root = et.fromstring(self.xml)
+	
+	def getXMLRoot(self, no_cache=False):
+		self.parse(no_cache=no_cache)
+		
+		return self.root
+	
+	def getInterfaces(self, no_cache=False):
+		if self.root is None:
+			self.parse(no_cache=no_cache)
+		
+		if self.interfaces is None or no_cache:
+			self.interfaces = {}
+			
+			for interface in self.root.findall("interface"):
+				self.interfaces[interface.attrib["name"]] = {}
+				iface_dict = self.interfaces[interface.attrib["name"]]
+				for method in interface.findall("method"):
+					iface_dict[method.attrib["name"]] = { "type": "method", "in": "", "out": "" }
+					method_dict = iface_dict[method.attrib["name"]]
+					for arg in method.findall("arg"):
+						method_dict[arg.attrib["direction"]] += arg.attrib["type"]
+				
+				for signal in interface.findall("signal"):
+					iface_dict[signal.attrib["name"]] = { "type": "signal", "out": "" }
+					signal_dict = iface_dict[signal.attrib["name"]]
+					for arg in signal.findall("arg"):
+						signal_dict["out"] = arg.attrib["type"]
+				
+				for prop in interface.findall("property"):
+					iface_dict[prop.attrib["name"]] = { "type": "property",
+										"signature": prop.attrib["type"],
+										"access": prop.attrib["access"],
+										}
+		
+		return self.interfaces
+	
+	def getSignatures(self, interface, member, no_cache=False):
+		if self.interfaces is None or no_cache:
+			self.get_interfaces(no_cache=no_cache)
+		
 		return (self.interfaces[interface][member]["in"], self.interfaces[interface][member]["out"])
 
 class AsyncCall():
