@@ -28,7 +28,7 @@ pysdbus example
 ```
 import pysdbus
 
-bus = pysdbus.RemoteSystemBus("root@homegear")
+bus = pysdbus.SystemBus()
 
 obj = bus.getObject("org.freedesktop.DBus", "/org/freedesktop/DBus")
 
