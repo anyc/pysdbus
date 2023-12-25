@@ -36,6 +36,12 @@ class MethodNotFound(Exception):
 		self.intf = intf
 		self.method = method
 
+class ElementNotFound(Exception):
+	def __init__(self, obj, intf, element):
+		self.obj = obj
+		self.intf = intf
+		self.method = element
+
 class PeerNotFound(Exception):
 	def __init__(self, obj):
 		self.obj = obj
@@ -950,6 +956,36 @@ class InterfaceProxy(object):
 		mp.set_values("ssv", self.iface_name, prop, signature, *values)
 		
 		return set_method_proxy.send_call(mp)
+	
+	def is_signal(self, element):
+		signatures = self.getSignatures()
+		
+		if element in signatures:
+			entry = signatures[element]
+			
+			return entry["type"] == "signal"
+		else:
+			raise ElementNotFound(self.object_proxy, self.iface_name, element)
+	
+	def is_method(self, element):
+		signatures = self.getSignatures()
+		
+		if element in signatures:
+			entry = signatures[element]
+			
+			return entry["type"] == "method"
+		else:
+			raise ElementNotFound(self.object_proxy, self.iface_name, element)
+	
+	def is_property(self, element):
+		signatures = self.getSignatures()
+		
+		if element in signatures:
+			entry = signatures[element]
+			
+			return entry["type"] not in ["method", "signal"]
+		else:
+			raise ElementNotFound(self.object_proxy, self.iface_name, element)
 
 class ObjectProxy():
 	def __init__(self, bus, service, path):
