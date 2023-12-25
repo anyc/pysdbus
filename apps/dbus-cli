@@ -41,6 +41,8 @@ def show_iface(obj, iface, signatures=None):
 				print("\t", name+" = "+out_sign+"")
 			else:
 				print("\t", item+" \""+entry["signature"]+"\" "+entry["access"])
+	else:
+		print("error, no such interface \"%s\"" % iface, file=sys.stderr)
 
 def is_signal(obj, iface, item):
 	signatures = obj.getSignatures()
@@ -58,6 +60,7 @@ if __name__ == '__main__':
 	ap = ArgumentParser()
 	ap.add_argument("--remote")
 	ap.add_argument("--system", action="store_true")
+	ap.add_argument("--monitor", action="store_true")
 	ap.add_argument("-d", "--debug", action="store_true")
 	
 	ap.add_argument('argv', nargs=REMAINDER, help="[service] [path] [interface] [item] [values]")
@@ -132,10 +135,7 @@ if __name__ == '__main__':
 		def print_obj_tree(obj_path):
 			obj = bus.getObject(service, obj_path)
 			
-			intro_proxy = obj.getIntrospectProxy()
-			intro_proxy.parse()
-			
-			for node in intro_proxy.root.findall("node"):
+			for node in obj.introspection_proxy.getXMLRoot().findall("node"):
 				name = obj_path.rstrip("/")+"/"+node.attrib["name"]
 				
 				print(name)
@@ -152,19 +152,33 @@ if __name__ == '__main__':
 		#
 		
 		iface = argv[3]
+		
+		obj_iface = obj.getInterface(iface)
 	else:
 		#
 		# show the interfaces of the object and the contents of the interface
-		##
+		#
 		
-		signatures = obj.getSignatures()
-		
-		for iface in sorted(signatures.keys()):
-			print(iface)
+		if not args.monitor:
+			signatures = obj.getSignatures()
 			
-			show_iface(obj, iface, signatures)
-		
-		sys.exit(0)
+			for iface in sorted(signatures.keys()):
+				print(iface)
+				
+				show_iface(obj, iface, signatures)
+			
+			sys.exit(0)
+		else:
+			def on_prop_changed_cb(mp):
+				mp.dump()
+			
+			obj.addPropertiesChangedCallback(on_prop_changed_cb, msg_proxy_callback=True)
+			
+			eloop = pysdbus.EventLoop(bus)
+			try:
+				eloop.loop()
+			except KeyboardInterrupt:
+				eloop.stop()
 	
 	if len(argv) >= 5:
 		#
@@ -181,19 +195,19 @@ if __name__ == '__main__':
 		sys.exit(0)
 	
 	if len(argv) >= 6:
-		#
-		# set a property to the given value
-		#
+		if obj_iface.is_property(item):
+			#
+			# set a property to the given value
+			#
+			
+			obj.setProperty(iface, item, "s", argv[5], signature="ssv")
 		
-		prop_iface = obj.getInterface(pysdbus.dbus_properties_interface)
-		
-		prop_iface.Set(iface, item, "s", argv[5], signature="ssv")
+		# TODO if item is a method, parse the function parameters
 	else:
-		if is_signal(obj, iface, item):
+		if obj_iface.is_signal(item):
 			#
 			# subscribe to a signal
 			#
-			obj_iface = obj.getInterface(iface)
 			
 			def signal_cb(mp):
 				mp.dump()
@@ -205,29 +219,39 @@ if __name__ == '__main__':
 				eloop.loop()
 			except KeyboardInterrupt:
 				eloop.stop()
-		else:
+		elif obj_iface.is_property(item):
 			#
 			# First, check if the given name is a property. If yes, show the
 			# property value. If not, assume this is a method and call it.
 			#
 			
-			prop_iface = obj.getInterface(pysdbus.dbus_properties_interface)
-			
-			try:
-				value = prop_iface.Get(iface, item)
-				found = True
-			except pysdbus.MethodNotFound:
-				found = False
-			except Exception as e:
-				raise
-			
-			if found:
-				print(iface, item, value)
-				sys.exit(0)
-			
-			obj_iface = obj.getInterface(iface)
-			
-			
+			if not args.monitor:
+				try:
+					value = obj.getProperty(iface, item)
+					found = True
+				except pysdbus.MethodNotFound:
+					found = False
+				except Exception as e:
+					raise
+				
+				if found:
+					print("%s.%s" % (iface, item), value)
+					sys.exit(0)
+			else:
+				def on_prop_changed_cb(new_value):
+					if new_value is None:
+						print(f"{item} is gone")
+					else:
+						print(f"new value for {item}:", new_value)
+				
+				obj_iface.addPropertyChangedCallback(item, on_prop_changed_cb)
+				
+				eloop = pysdbus.EventLoop(bus)
+				try:
+					eloop.loop()
+				except KeyboardInterrupt:
+					eloop.stop()
+		elif obj_iface.is_method(item):
 			mp = pysdbus.MethodProxy(obj_iface, item)
 			
 			try:
@@ -235,3 +259,6 @@ if __name__ == '__main__':
 			except pysdbus.MethodNotFound:
 				print("error, no such method found", file=sys.stderr)
 				sys.exit(1)
+		else:
+			print("error, unexpected element:", item, file=sys.stderr)
+			sys.exit(1)
