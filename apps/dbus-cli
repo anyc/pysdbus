@@ -59,6 +59,49 @@ def is_signal(obj, iface, item):
 	else:
 		return False
 
+def print_value(value):
+	if args.json:
+		import json
+		
+		def replace_item(item):
+			if (
+				isinstance(item, pysdbus.UInt16)
+				or isinstance(item, pysdbus.UInt32)
+				or isinstance(item, pysdbus.Byte)
+				):
+				return int(item)
+			elif isinstance(item, dict):
+				return replace_dict_values(item)
+			elif isinstance(item, list):
+				for idx in range(len(item)):
+					item[idx] = replace_item(item[idx])
+			else:
+				return item
+		
+		def replace_dict_values(dic):
+			from ctypes import c_uint32
+			for key in list(dic.keys()).copy():
+				if (
+					isinstance(key, pysdbus.UInt16)
+					or isinstance(key, pysdbus.UInt32)
+					or isinstance(key, pysdbus.Byte)
+					):
+					dic[str(key)] = dic[key]
+					del dic[key]
+					key = str(key)
+				
+				if isinstance(dic[key], dict):
+					replace_dict_values(dic[key])
+				else:
+					dic[key] = replace_item(dic[key])
+					#print(type(key), type(dic[key]), key, dic[key])
+		
+		replace_item(value)
+		print(json.dumps(value))
+	else:
+		import pprint
+		pprint.pprint(value)
+
 if __name__ == '__main__':
 	from argparse import ArgumentParser, REMAINDER
 	
@@ -66,6 +109,7 @@ if __name__ == '__main__':
 	ap.add_argument("--remote")
 	ap.add_argument("--system", action="store_true")
 	ap.add_argument("--monitor", action="store_true")
+	ap.add_argument("--json", action="store_true")
 	ap.add_argument("-d", "--debug", action="store_true")
 	
 	ap.add_argument('argv', nargs=REMAINDER, help="[service] [path] [interface] [item] [values]")
@@ -240,14 +284,16 @@ if __name__ == '__main__':
 					raise
 				
 				if found:
-					print("%s %s" % (iface, item), value)
+					print("%s %s" % (iface, item), end=" ")
+					print_value(value)
 					sys.exit(0)
 			else:
 				def on_prop_changed_cb(new_value):
 					if new_value is None:
 						print(f"{item} is gone")
 					else:
-						print(f"new value for {item}:", new_value)
+						print(f"new value for {item}: ", end="")
+						print_value(new_value)
 				
 				obj_iface.addPropertyChangedCallback(item, on_prop_changed_cb)
 				
@@ -260,10 +306,12 @@ if __name__ == '__main__':
 			mp = pysdbus.MethodProxy(obj_iface, item)
 			
 			try:
-				print(mp.call())
+				result = mp.call()
 			except pysdbus.MethodNotFound:
 				print("error, no such method found", file=sys.stderr)
 				sys.exit(1)
+			
+			print_value(result)
 		else:
 			print("error, unexpected element:", item, file=sys.stderr)
 			sys.exit(1)
