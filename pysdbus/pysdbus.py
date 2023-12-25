@@ -974,12 +974,12 @@ class InterfaceProxy(object):
 		return self.object_proxy.props_iface.add_match("PropertiesChanged", self.on_property_changed_cb, udata, msg_proxy_callback=True)
 	
 	def getSignatures(self, member=None):
-		intro_obj = self.object_proxy.getIntrospectProxy()
+		interfaces = self.object_proxy.introspection_proxy.getInterfaces()
 		
 		if member:
-			return intro_obj.interfaces[self.iface_name][member]
+			return interfaces[self.iface_name][member]
 		else:
-			return intro_obj.interfaces[self.iface_name]
+			return interfaces[self.iface_name]
 	
 	def getProperty(self, prop):
 		dbus_prop_iface = self.object_proxy.getInterface(dbus_properties_interface)
@@ -1052,22 +1052,24 @@ class ObjectProxy():
 		self.path = path
 		
 		self.props_iface = None
+		self._introspection_proxy = None
 	
 	def getInterface(self, interface):
 		return InterfaceProxy(self, interface)
 	
-	def getIntrospectProxy(self):
-		return IntrospectionProxy(self)
+	@property
+	def introspection_proxy(self):
+		if self._introspection_proxy is None:
+			self._introspection_proxy = IntrospectionProxy(self)
+		
+		return self._introspection_proxy
 	
 	def getSignatures(self, interface=None, member=None):
-		self.introspection_proxy = self.getIntrospectProxy()
-		
-		self.introspection_proxy.parse()
-		self.introspection_proxy.getInterfaces()
+		interfaces = self.introspection_proxy.getInterfaces()
 		
 		if interface and member:
-			return (self.introspection_proxy.interfaces[interface][member]["in"],
-				self.introspection_proxy.interfaces[interface][member]["out"])
+			return (interfaces[interface][member]["in"],
+				interfaces[interface][member]["out"])
 		else:
 			return self.introspection_proxy.interfaces
 
