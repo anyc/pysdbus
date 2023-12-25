@@ -1143,7 +1143,10 @@ class Match():
 	def mp_callback_wrapper(self, ct_msg, userdata, ret_error):
 		mp = MessageProxy(ct_msg)
 		
-		rv = self.callback(mp)
+		if userdata is not None:
+			rv = self.callback(mp, userdata)
+		else:
+			rv = self.callback(mp)
 		if rv is None:
 			rv = 1
 		return rv
