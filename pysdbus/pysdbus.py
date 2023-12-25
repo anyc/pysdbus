@@ -947,6 +947,32 @@ class InterfaceProxy(object):
 		
 		return self.object_proxy.bus.add_match(match_string, callback, userdata, raw_callback=raw_callback, msg_proxy_callback=msg_proxy_callback)
 	
+	def on_property_changed_cb(self, mp, udata):
+		values = mp.get_values()
+		if not isinstance(values, tuple):
+			raise Exception("unexpected data received", values)
+		if values[0] != self.iface_name:
+			# this is not an error
+			return
+		
+		if udata.element in values[1]:
+			udata.callback(values[1][udata.element])
+		elif udata.element in values[2]:
+			udata.callback(None)
+		else:
+			# this is not an error
+			return
+	
+	def addPropertyChangedCallback(self, element, callback):
+		if not self.object_proxy.props_iface:
+			self.object_proxy.props_iface = self.object_proxy.getInterface(dbus_properties_interface)
+		
+		udata = lambda: None
+		udata.element = element
+		udata.callback = callback
+		
+		return self.object_proxy.props_iface.add_match("PropertiesChanged", self.on_property_changed_cb, udata, msg_proxy_callback=True)
+	
 	def getSignatures(self, member=None):
 		intro_obj = self.object_proxy.getIntrospectProxy()
 		
