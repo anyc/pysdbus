@@ -39,10 +39,11 @@ def show_iface(obj, iface, signatures=None):
 					name += "("+in_sign+")"
 				
 				print("\t", name, end="")
+				if entry["type"] == "signal":
+					print("*", end="")
 				if out_sign:
-					print(" -> "+out_sign+"")
-				else:
-					print()
+					print(" -> "+out_sign+"", end="")
+				print()
 			else:
 				print("\t", item+" \""+entry["signature"]+"\" "+entry["access"])
 	else:
