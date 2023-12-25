@@ -1072,7 +1072,39 @@ class ObjectProxy():
 			return (interfaces[interface][member]["in"],
 				interfaces[interface][member]["out"])
 		else:
-			return self.introspection_proxy.interfaces
+			return interfaces
+	
+	def getChildObjectPaths(self):
+		root = self.introspection_proxy.getXMLRoot()
+		
+		for node in root.findall("node"):
+			yield node.attrib["name"]
+	
+	def getProperty(self, interface, prop_name=None):
+		if not prop_name:
+			# expect the property name at the end of the interface string
+			
+			idx = interface.rfind(".")
+			
+			prop_name = interface[idx+1:]
+			interface = interface[:idx]
+		
+		if not self.props_iface:
+			self.props_iface = self.getInterface(dbus_properties_interface)
+		
+		return self.props_iface.Get(interface, prop_name)
+	
+	def setProperty(self, interface, prop_name, *args, **kwargs):
+		if not self.props_iface:
+			self.props_iface = self.getInterface(dbus_properties_interface)
+		
+		self.props_iface.Set(interface, prop_name, *args, **kwargs)
+	
+	def addPropertiesChangedCallback(self, *args, **kwargs):
+		if not self.props_iface:
+			self.props_iface = self.getInterface(dbus_properties_interface)
+		
+		return self.props_iface.add_match("PropertiesChanged", *args, **kwargs)
 
 class Match():
 	# if raw_callback==True, expects a callback with the low-level sd-bus signature
