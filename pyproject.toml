@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pysdbus"
+version = "2023.12.25"
+authors = [
+  { name="Mario Kicherer", email="dev@kicherer.org" },
+]
+description = "pysdbus is a Python wrapper library for DBus inter-process communication"
+readme = "README.md"
+requires-python = ">=3.0"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU Lesser General Public License v2 or later (LGPLv2+)",
+    "Operating System :: POSIX :: Linux",
+]
+keywords = ['dbus', 'sdbus', 'IPC', 'ctypes']
+license = {file = "LICENSE"}
+
+[project.urls]
+Homepage = "https://github.com/anyc/pysdbus/"
+Issues = "https://github.com/anyc/pysdbus/issues"
+
+[tool.setuptools.packages.find]
+include = ["pysdbus"]
+
+[tool.setuptools]
+script-files = ['apps/dbus-cli']
